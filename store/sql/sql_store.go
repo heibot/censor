@@ -467,13 +467,13 @@ func (s *Store) CreateBindingHistory(ctx context.Context, history censor.CensorB
 	}
 
 	query := s.rebind(`INSERT INTO censor_binding_history (id, biz_type, biz_id, field, resource_id, resource_type,
-              decision, replace_policy, replace_value, violation_ref_id, review_revision, reason_json, source, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+              decision, replace_policy, replace_value, violation_ref_id, review_revision, reason_json, source, reviewer_id, comment, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 
 	_, err := s.db.ExecContext(ctx, query,
 		history.ID, history.BizType, history.BizID, history.Field, history.ResourceID, history.ResourceType,
 		history.Decision, history.ReplacePolicy, history.ReplaceValue, history.ViolationRefID,
-		history.ReviewRevision, history.ReasonJSON, history.Source, now)
+		history.ReviewRevision, history.ReasonJSON, history.Source, history.ReviewerID, history.Comment, now)
 	if err != nil {
 		return censor.NewStoreError("create", "censor_binding_history", err)
 	}
@@ -484,7 +484,7 @@ func (s *Store) CreateBindingHistory(ctx context.Context, history censor.CensorB
 // ListBindingHistory lists binding history for a business field.
 func (s *Store) ListBindingHistory(ctx context.Context, bizType, bizID, field string, limit int) ([]censor.CensorBindingHistory, error) {
 	query := s.rebind(`SELECT id, biz_type, biz_id, field, resource_id, resource_type, decision, replace_policy,
-              replace_value, violation_ref_id, review_revision, reason_json, source, created_at
+              replace_value, violation_ref_id, review_revision, reason_json, source, reviewer_id, comment, created_at
               FROM censor_binding_history WHERE biz_type = ? AND biz_id = ? AND field = ?
               ORDER BY review_revision DESC LIMIT ?`)
 
@@ -497,11 +497,14 @@ func (s *Store) ListBindingHistory(ctx context.Context, bizType, bizID, field st
 	var histories []censor.CensorBindingHistory
 	for rows.Next() {
 		var h censor.CensorBindingHistory
+		var reviewerID, comment sql.NullString
 		if err := rows.Scan(&h.ID, &h.BizType, &h.BizID, &h.Field, &h.ResourceID, &h.ResourceType,
 			&h.Decision, &h.ReplacePolicy, &h.ReplaceValue, &h.ViolationRefID,
-			&h.ReviewRevision, &h.ReasonJSON, &h.Source, &h.CreatedAt); err != nil {
+			&h.ReviewRevision, &h.ReasonJSON, &h.Source, &reviewerID, &comment, &h.CreatedAt); err != nil {
 			return nil, censor.NewStoreError("scan", "censor_binding_history", err)
 		}
+		h.ReviewerID = reviewerID.String
+		h.Comment = comment.String
 		histories = append(histories, h)
 	}
 

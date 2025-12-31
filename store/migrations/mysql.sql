@@ -118,10 +118,13 @@ CREATE TABLE IF NOT EXISTS censor_binding_history (
     review_revision INT NOT NULL,
     reason_json     JSON NULL COMMENT 'UnifiedViolation[] as JSON',
     source          VARCHAR(32) NOT NULL COMMENT 'auto/manual/recheck/policy_upgrade/appeal',
+    reviewer_id     VARCHAR(128) NULL COMMENT 'Who made the decision (for manual review)',
+    comment         TEXT NULL COMMENT 'Reviewer comment or notes',
     created_at      BIGINT NOT NULL,
 
     INDEX idx_biz_field_rev (biz_type, biz_id, field, review_revision DESC),
     INDEX idx_source (source, created_at),
+    INDEX idx_reviewer (reviewer_id, created_at),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

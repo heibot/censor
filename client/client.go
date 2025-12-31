@@ -605,3 +605,113 @@ func (c *Client) fireManualReviewRequiredHook(ctx context.Context, biz censor.Bi
 	}
 	c.hooks.OnManualReviewRequired(ctx, event)
 }
+
+// ManualReviewInput represents input for submitting a manual review decision.
+type ManualReviewInput struct {
+	BizType       censor.BizType    // Business type
+	BizID         string            // Business object ID
+	Field         string            // Field name
+	ReviewerID    string            // Who is making the decision
+	Decision      censor.Decision   // pass/block/review
+	ReplacePolicy censor.ReplacePolicy // How to handle if blocked
+	ReplaceValue  string            // Replacement value if applicable
+	Comment       string            // Reviewer's comment
+	Reasons       []censor.Reason   // Reasons for the decision (optional)
+}
+
+// ManualReviewResult represents the result of a manual review submission.
+type ManualReviewResult struct {
+	BindingUpdated bool   // Whether the binding was updated
+	HistoryID      string // ID of the history record created
+	PreviousDecision string // Previous decision (if any)
+}
+
+// SubmitManualReview submits a manual review decision for a business field.
+// This is used by human reviewers to approve, reject, or modify content decisions.
+func (c *Client) SubmitManualReview(ctx context.Context, input ManualReviewInput) (*ManualReviewResult, error) {
+	if input.BizType == "" || input.BizID == "" || input.Field == "" {
+		return nil, fmt.Errorf("biz_type, biz_id, and field are required")
+	}
+	if input.ReviewerID == "" {
+		return nil, fmt.Errorf("reviewer_id is required")
+	}
+	if input.Decision == "" {
+		return nil, fmt.Errorf("decision is required")
+	}
+
+	result := &ManualReviewResult{}
+
+	// Get existing binding
+	existing, err := c.store.GetBinding(ctx, string(input.BizType), input.BizID, input.Field)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get binding: %w", err)
+	}
+
+	if existing != nil {
+		result.PreviousDecision = existing.Decision
+	}
+
+	// Prepare new binding
+	binding := censor.CensorBinding{
+		BizType:       string(input.BizType),
+		BizID:         input.BizID,
+		Field:         input.Field,
+		Decision:      string(input.Decision),
+		ReplacePolicy: string(input.ReplacePolicy),
+		ReplaceValue:  input.ReplaceValue,
+	}
+
+	// Preserve existing resource info if available
+	if existing != nil {
+		binding.ResourceID = existing.ResourceID
+		binding.ResourceType = existing.ResourceType
+		binding.ContentHash = existing.ContentHash
+		binding.ReviewID = existing.ReviewID
+		binding.ReviewRevision = existing.ReviewRevision + 1
+		binding.ViolationRefID = existing.ViolationRefID
+	} else {
+		binding.ReviewRevision = 1
+	}
+
+	// If blocking, may need to update violation ref
+	if input.Decision == censor.DecisionBlock && existing != nil && existing.ViolationRefID == "" {
+		// Create a new violation snapshot for manual block
+		binding.ViolationRefID = "" // Will be set if needed
+	}
+
+	// Create history record
+	var reasonJSON []byte
+	if len(input.Reasons) > 0 {
+		reasonJSON, _ = json.Marshal(input.Reasons)
+	}
+
+	history := censor.CensorBindingHistory{
+		BizType:        binding.BizType,
+		BizID:          binding.BizID,
+		Field:          binding.Field,
+		ResourceID:     binding.ResourceID,
+		ResourceType:   binding.ResourceType,
+		Decision:       binding.Decision,
+		ReplacePolicy:  binding.ReplacePolicy,
+		ReplaceValue:   binding.ReplaceValue,
+		ViolationRefID: binding.ViolationRefID,
+		ReviewRevision: binding.ReviewRevision,
+		ReasonJSON:     string(reasonJSON),
+		Source:         string(censor.SourceManual),
+		ReviewerID:     input.ReviewerID,
+		Comment:        input.Comment,
+	}
+
+	if err := c.store.CreateBindingHistory(ctx, history); err != nil {
+		return nil, fmt.Errorf("failed to create history: %w", err)
+	}
+	result.HistoryID = history.ID
+
+	// Update binding
+	if err := c.store.UpsertBinding(ctx, binding); err != nil {
+		return nil, fmt.Errorf("failed to update binding: %w", err)
+	}
+	result.BindingUpdated = true
+
+	return result, nil
+}

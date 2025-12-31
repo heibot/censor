@@ -128,15 +128,20 @@ CREATE TABLE IF NOT EXISTS censor_binding_history (
     review_revision INT NOT NULL,
     reason_json     JSONB NULL,
     source          VARCHAR(32) NOT NULL,
+    reviewer_id     VARCHAR(128) NULL,
+    comment         TEXT NULL,
     created_at      BIGINT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_binding_history_biz_field ON censor_binding_history (biz_type, biz_id, field, review_revision DESC);
 CREATE INDEX IF NOT EXISTS idx_binding_history_source ON censor_binding_history (source, created_at);
+CREATE INDEX IF NOT EXISTS idx_binding_history_reviewer ON censor_binding_history (reviewer_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_binding_history_created ON censor_binding_history (created_at);
 
 COMMENT ON TABLE censor_binding_history IS 'Historical state changes for audit';
 COMMENT ON COLUMN censor_binding_history.source IS 'auto/manual/recheck/policy_upgrade/appeal';
+COMMENT ON COLUMN censor_binding_history.reviewer_id IS 'Who made the decision (for manual review)';
+COMMENT ON COLUMN censor_binding_history.comment IS 'Reviewer comment or notes';
 
 -- ============================================================
 -- Table: violation_snapshot

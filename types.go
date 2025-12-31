@@ -141,7 +141,9 @@ type CensorBindingHistory struct {
 	ViolationRefID string `json:"violation_ref_id" db:"violation_ref_id"`
 	ReviewRevision int    `json:"review_revision" db:"review_revision"`
 	ReasonJSON     string `json:"reason_json" db:"reason_json"`
-	Source         string `json:"source" db:"source"` // auto/manual/recheck/policy_upgrade/appeal
+	Source         string `json:"source" db:"source"`           // auto/manual/recheck/policy_upgrade/appeal
+	ReviewerID     string `json:"reviewer_id" db:"reviewer_id"` // Who made the decision (for manual review)
+	Comment        string `json:"comment" db:"comment"`         // Reviewer's comment
 	CreatedAt      int64  `json:"created_at" db:"created_at"`
 }
 

@@ -393,5 +393,51 @@ func main() {
 			preciseResult.UsedFallback, preciseResult.BlockedCount)
 	}
 
+	// ============================================================
+	// Example 10: Submit Manual Review Decision
+	// Use case: Human reviewer approves/rejects content
+	// ============================================================
+	log.Println("\n=== Example 10: Submit Manual Review ===")
+
+	manualResult, err := censorClient.SubmitManualReview(ctx, client.ManualReviewInput{
+		BizType:       censor.BizType("user_profile"),
+		BizID:         "user_123",
+		Field:         "bio",
+		ReviewerID:    "reviewer_admin_001",
+		Decision:      censor.DecisionPass,
+		ReplacePolicy: censor.ReplacePolicyNone,
+		Comment:       "Content reviewed and approved by human moderator",
+	})
+	if err != nil {
+		log.Printf("Failed to submit manual review: %v", err)
+	} else {
+		log.Printf("Manual review submitted: BindingUpdated=%v, PreviousDecision=%s",
+			manualResult.BindingUpdated, manualResult.PreviousDecision)
+	}
+
+	// Example: Block content with replacement
+	blockResult, err := censorClient.SubmitManualReview(ctx, client.ManualReviewInput{
+		BizType:       censor.BizType("note"),
+		BizID:         "note_789",
+		Field:         "title",
+		ReviewerID:    "reviewer_admin_002",
+		Decision:      censor.DecisionBlock,
+		ReplacePolicy: censor.ReplacePolicyDefault,
+		ReplaceValue:  "[内容违规]",
+		Comment:       "Title contains prohibited content - manual block",
+		Reasons: []censor.Reason{
+			{
+				Code:     "manual_block",
+				Message:  "Manually blocked by reviewer",
+				Provider: "manual",
+			},
+		},
+	})
+	if err != nil {
+		log.Printf("Failed to submit block decision: %v", err)
+	} else {
+		log.Printf("Block decision submitted: HistoryID=%s", blockResult.HistoryID)
+	}
+
 	log.Println("\n=== Demo Complete ===")
 }
